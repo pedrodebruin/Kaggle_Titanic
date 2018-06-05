@@ -44,7 +44,7 @@ in the _titanic.py_ script, but we summarize most of them below:
 - __ticket strings__: The values for ticket strings are often a combination of a literal first part followed by a number. 
 We have initially decided to drop the first word and replace the feature with only the numerical value of the 2nd word.
 - __Cabin feature__: The cabin feature has a high amount of NA entries. Initially dropped this feature since it is also string-valued, but
-could perhaps be replaced with unique numbers (e.g. 10^LETTER(idx) + cabin #).
+could perhaps be replaced with unique numbers (e.g. 10^ASCII\_idx(LETTER) + cabin #).
 - __Passenger Name__: We have initially dropped the passenger name feature as we assume families will often occupy the same cabin, and the sibsp/parch features.
 should hopefully encapsulate the effect of having additional family aboard.
 - __Age__: The passenger age feature has a non-negligible fraction of NA, which are replaced with the mean of the training set age distribution.

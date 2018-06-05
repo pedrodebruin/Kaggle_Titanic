@@ -14,6 +14,9 @@ from string import ascii_lowercase, ascii_uppercase
 
 
 def main():
+	debug = False # just a quick verbosity switch
+	useAllTrainingData = True
+
 	# Load the data
 	train_df = pd.read_csv('./data/train.csv')
 	test_df = pd.read_csv('./data/test.csv')
@@ -116,11 +119,15 @@ def main():
 	# Now onto scikit learn
 	from sklearn import linear_model
 	from sklearn.pipeline import make_pipeline
-	from sklearn.preprocessing import StandardScaler
-	from sklearn.linear_model import LogisticRegression
-	from sklearn.linear_model.logistic import _logistic_loss
 	from sklearn.metrics import classification_report,confusion_matrix
+	from sklearn.linear_model import LogisticRegression
+	from sklearn.ensemble import RandomForestClassifier
+	from sklearn.tree import DecisionTreeClassifier
+	from sklearn.neighbors import KNeighborsClassifier
+	from sklearn.svm import SVC
+	from sklearn.neural_network import MLPClassifier
 	
+
 	# For easier handling into scikit, let's put the Survived column in its own dataframe and make a new df with it dropped
 	train_x_df = train_df
 	train_x_df = train_x_df.drop(columns=['Survived'])
@@ -131,71 +138,62 @@ def main():
 	test_x_df = test_df
 	test_x_df = test_x_df.drop(columns=['PassengerId'])	
 
+	train_x_df = Scale(train_x_df)
+	xval_x_df = Scale(xval_x_df)
+	test_x_df = Scale(test_x_df)
+
 	# Some of the Fare entries are strings. 
 	dtypeCount_x =[train_x_df.iloc[:,i].apply(type).value_counts() for i in range(train_x_df.shape[1])]
 	print(dtypeCount_x)
 
 	
-	print("\nWe start using a logistic classifier")
-	pipe = make_pipeline(StandardScaler(), LogisticRegression(class_weight='balanced'))
-	
-	# fit
-	pipe.fit( train_x_df, train_y_df )
-
-	
-	print( "\nSummary of test dataframe:\n {0}".format(test_df.describe()) )
-	
-	# Split test dataset into cross-validation and test by using indexing column PassengerId
-
-	# predict on xval sample to optimize method and hyperparameters
-	xval_results = pipe.predict_proba(xval_x_df)
-	#print("\nPrediction on xval sample is:\n")
-	#print (xval_results)
-
-	## Cost function
-	#Jtrain =  _logistic_loss(clf.coef_, train_x_df, train_y_df, 1 / clf.C)
-	#print("The cost as evaluated on the training set is:\n".format(Jtrain))	
-	#Jtrain =  _logistic_loss(clf.coef_, train_x_df, train_y_df, 1 / clf.C)
-	#print("The cost as evaluated on the cross-validation set is:\n".format(Jxval))	
-
-	# predict on test to evaluate performance
-	test_results = pipe.predict_proba(test_x_df)
-	
-	# Convert m x 2 probability array into a m x 1 logical 0 or 1 array based on index of max(p)
-	test_logic_results = probToPred(test_results)
-	print("Results on test set:\n{0}".format(test_results))
-	
-	print(len(test_logic_results))
-	print (len(test_df['PassengerId']))
-
-	pred_df = pd.DataFrame( { 'PassengerId': test_df['PassengerId'], 'Survived': test_logic_results })
-	print(pred_df)
-	pred_df.to_csv("data/prediction.csv", index=False)
-
 	print("\n")
 	print("#"*100)
-	print("Now let's try a neural network")
+	print("Let's try several different kinds of classifier")
 	print("#"*100)
+	print("\n")
 
-	from sklearn.neural_network import MLPClassifier
 
-	pipe_nn = make_pipeline(StandardScaler(), 
-		MLPClassifier(activation='logistic', solver='lbfgs', alpha=1e-5, hidden_layer_sizes=(2,10), random_state=1, ) )
+	keys = []
+	scores = []
+	models = {'Logistic Regression': LogisticRegression(), 
+        	  'Decision Tree': DecisionTreeClassifier( class_weight="balanced"),
+	          'Random Forest': RandomForestClassifier(n_estimators=5), 
+        	  'K-Nearest Neighbors': KNeighborsClassifier(n_neighbors=1),
+	          'Linear SVM': SVC(kernel='rbf', gamma='auto', C=1.0), 
+        	  'Neural Network': MLPClassifier(activation='logistic', solver='lbfgs', alpha=1e-5, hidden_layer_sizes=(2,10), random_state=1)}
 
-	pipe_nn.fit( train_x_df, train_y_df )
-	train_results = pipe.predict_proba(train_x_df)
-	xval_results = pipe.predict_proba(xval_x_df)
-	test_results = pipe_nn.predict_proba(test_x_df)
+	for k,v in models.items():
+		print("\nTrying out classifier {0}".format(k))
+		model = v
+		if useAllTrainingData:
+			frames_x = [ train_x_df, xval_x_df ]
+			frames_y = [ train_y_df, xval_y_df ]
+			fulltrain_x_df = pd.concat(frames_x)
+			fulltrain_y_df = pd.concat(frames_y)
+			clf = model.fit(fulltrain_x_df, fulltrain_y_df)		
+		else:
+			clf = model.fit(train_x_df, train_y_df)		
+		train_y_prob = model.predict(train_x_df)  
+		xval_y_prob = model.predict(xval_x_df)  
+		test_y_prob = model.predict(test_x_df)  
 
-	train_logic_results = probToPred(train_results)
-	xval_logic_results = probToPred(xval_results)
-	test_logic_results = probToPred(test_results)
+		train_y_pred = np.where(train_y_prob > 0.5, 1, 0)	
+		xval_y_pred = np.where(xval_y_prob > 0.5, 1, 0)	
+		test_y_pred = np.where(test_y_prob > 0.5, 1, 0)	
 
-	print(classification_report(train_logic_results, train_y_df))
-	print(classification_report(xval_logic_results, xval_y_df))
-
-	pred_df = pd.DataFrame( { 'PassengerId': test_df['PassengerId'], 'Survived': test_logic_results })
-	pred_df.to_csv("data/prediction_nn.csv", index=False)
+		print("Classification report on training set:")
+		print(classification_report(train_y_df, train_y_pred))
+		print("\nClassification report on cross-validation set:")
+		print(classification_report(xval_y_df, xval_y_pred))
+		print("\n\n")
+		#print(confusion_matrix(train_y_df, train_y_pred))
+		#print(confusion_matrix(xval_y_df, xval_y_pred))
+	
+		pred_df = pd.DataFrame( { 'PassengerId': test_df['PassengerId'], 'Survived': test_y_pred })
+		outstring = k.replace(' ', '')
+		outstring = outstring.replace('-','')
+		pred_df.to_csv("data/prediction_"+outstring+".csv", index=False)
  
 
 def ticketcleanup(df):
@@ -238,12 +236,18 @@ def letterToInt(l):
 	return n
 	
 
-def probToPred(df):
-	newdf = []
-	for i in range(0,len(df)):
-		newdf.append(np.argmax(df[i]))	
+def Scale(df):
+	from sklearn.preprocessing import StandardScaler
 
-	return newdf
+        col_name = df.columns
+        scaler = StandardScaler()
+        scaleddf = scaler.fit_transform(df)
+        scaleddf = pd.DataFrame(scaleddf, columns = col_name)
+	return scaleddf
+
+
 
 if __name__=='__main__':
 	main()
+
+
