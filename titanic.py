@@ -84,14 +84,27 @@ def main():
 	
 	
 	print("\nThere are too many missing entries for Cabin, let's not use it")
-	train_df = train_df.drop(columns=['Cabin'])
-	xval_df = xval_df.drop(columns=['Cabin'])
-	test_df = test_df.drop(columns=['Cabin'])
+	train_df['Cabin'] = train_df['Cabin'].fillna(0) # pandas automatically ignores NA/NaN when usingi aggregate functions like count() and mean()
+	xval_df['Cabin'] = xval_df['Cabin'].fillna(0) # pandas automatically ignores NA/NaN when usingi aggregate functions like count() and mean()
+	test_df['Cabin'] = test_df['Cabin'].fillna(0) # pandas automatically ignores NA/NaN when usingi aggregate functions like count() and mean()
+	CabinNumber(train_df)
+	CabinNumber(xval_df)
+	CabinNumber(test_df)
+#	train_df = train_df.drop(columns=['Cabin'])
+#	xval_df = xval_df.drop(columns=['Cabin'])
+#	test_df = test_df.drop(columns=['Cabin'])
 
+        list_df = [train_df, test_df]
+        full_df = pd.concat(list_df)
+        namedictionary = makeNameTokens(full_df)
+
+        tokenizeName(train_df)
+        tokenizeName(xval_df)
+        tokenizeName(test_df)
 	print("\nLet's drop the name of the passenger to assume it plays no role in their survival")
-	train_df = train_df.drop(columns=['Name'])
-	xval_df = xval_df.drop(columns=['Name'])
-	test_df = test_df.drop(columns=['Name'])
+#        train_df = train_df.drop(columns=['Name'])
+#	xval_df = xval_df.drop(columns=['Name'])
+#	test_df = test_df.drop(columns=['Name'])
 
 	print("\nDropping PassengerId since that's just an indexing feature")
 	train_df = train_df.drop(columns=['PassengerId'])
@@ -216,10 +229,40 @@ def ticketcleanup(df):
 	df.Ticket = tcol
 
 
+def makeNameTokens(df):
+    name_dict = {}
+    numbervalue = 0
+    for i,row in df.iterrows():
+        name_cidx = df.columns.get_loc('Name')
+        name_str = df.Name[i]
+
+        if name not in name_dict.keys():
+            name_dict.append([name_str:numbervalue])
+            numbervalue += 1    
+
+    return name_dict
+
+def tokenizeNames(df,namedict):
+        df.Name = [ namedict(name) for name in df.Name ]
+
 def genderconversion(df,sexdict):
 	
 	# traversing through dataframe gender column and writing values where key matches
 	df.Sex = [sexdict[item] for item in df.Sex]
+
+def CabinNumber():
+	LETTERS = list(string.ascii_uppercase)
+        ccol = []
+        for i,row in df.iterrows():
+	        cabin_cidx = df.columns.get_loc('Cabin')
+	        cabin = df.Cabin[i]
+
+                cabinletter = cabin[1]
+                # The letter is replaced with 100*(index in alphabet)
+                newcabinnumber = 1000*LETTERS.index(cabinletter)+int(cabin[2:])
+                ccol.append(newcabinnumber)
+
+	df.Cabin = ccol
 
 
 def letterToInt(l):
